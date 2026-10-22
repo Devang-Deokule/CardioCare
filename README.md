@@ -81,10 +81,8 @@ Diabetes-Predictor/
 ## Developer & Author
 
 **Devang Deokule**  
-*Lead Developer & Machine Learning Researcher*  
 - GitHub: [@Devang-Deokule](https://github.com/Devang-Deokule)  
 - Project: CardioCare — Clinical Heart Disease Prediction System  
-- Academic Lab & Viva Evaluation
 
 ---
 
