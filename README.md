@@ -66,7 +66,7 @@ Diabetes-Predictor/
 
 1. **Clone or Navigate to the Repository:**
    ```powershell
-   cd "c:\Users\Devang\OneDrive\Desktop\DSL\Diabetes-Predictor"
+   cd "c:\Users\Devang\OneDrive\Desktop\DSL\CardioCare"
    ```
 
 2. **Install Dependencies:**
