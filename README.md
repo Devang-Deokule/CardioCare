@@ -1,5 +1,11 @@
 # CardioCare — Heart Disease Prediction System
 
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://cardiocare-dslab.streamlit.app/)
+[![Python 3.11](https://img.shields.io/badge/Python-3.11-2563EB.svg)](https://www.python.org/)
+[![Model: SVM 90%](https://img.shields.io/badge/Model-SVM%20(90.0%25%20Accuracy)-059669.svg)]()
+
+> **Live Demo:** [https://cardiocare-dslab.streamlit.app/](https://cardiocare-dslab.streamlit.app/)
+
 A complete, end-to-end clinical machine learning application built on the UCI Cleveland Heart Disease dataset. Developed for academic data-science lab demonstration and viva evaluation.
 
 ---
