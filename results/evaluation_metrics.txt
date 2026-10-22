@@ -1,0 +1,36 @@
+Logistic Regression Model Results:
+Accuracy: 0.8833
+
+Classification Report: 
+              precision    recall  f1-score   support
+
+           0       0.91      0.89      0.90        36
+           1       0.84      0.88      0.86        24
+
+
+Decison Tree Model Results:
+Accuracy: 0.8167
+
+Classification Report:
+              precision    recall  f1-score   support
+
+           0       0.86      0.83      0.85        36
+           1       0.76      0.79      0.78        24
+
+Accuracy: 0.87
+
+Classification Report:
+              precision    recall  f1-score   support
+
+           0       0.91      0.86      0.89        36
+           1       0.81      0.88      0.84        24
+
+
+SVM Model Results:
+Accuracy: 0.900
+
+Classification Report: 
+              precision    recall  f1-score   support
+
+           0       0.89      0.94      0.92        36
+           1       0.91      0.83      0.87        24
