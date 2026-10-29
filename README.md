@@ -12,9 +12,8 @@ A complete, end-to-end clinical machine learning application built on the UCI Cl
 
 ## Highlights & Features
 
-- **Tab-Based Navigation:** Clean, modern segmented tabs (`Overview`, `Heart Prediction`, `Machine Learning Guide`, `Model Analytics`, `Prediction History`, `About Project`).
+- **Tab-Based Navigation:** Clean, modern segmented tabs (`Overview`, `Heart Prediction`, `Model Analytics`, `Prediction History`, `About Project`).
 - **Icons & Color Theme:** Crisp, professional SVG vector icons (no cartoon emojis) paired with an executive clinical navy/slate color palette.
-- **Machine Learning Guide:** Comprehensive, first-principles explanation of supervised classification, the Cleveland dataset, one-hot encoding, feature standardization ($z = \frac{x-\mu}{\sigma}$), four core algorithms (Logistic Regression, Decision Tree, Random Forest, SVM with RBF kernel), evaluation metrics, and a Top 10 Viva Q&A cheat sheet.
 - **Single & Batch Prediction:** Interactive patient assessment form with automatic One-Hot Encoding and fitted `StandardScaler` transformation. Supports CSV batch prediction.
 - **Model Analytics & Heatmaps:** Multi-model benchmarking, interactive Plotly confusion matrices, and test accuracy gauges.
 - **Local SQLite Audit Log:** Persistent, private record keeping stored in `data/prediction_history.db`.
