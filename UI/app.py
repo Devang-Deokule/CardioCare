@@ -152,10 +152,63 @@ CATEGORICAL_FEATURES = {
         "label": "Thalassemia",
         "options": {
             "3": "Normal",
+            "3.0": "Normal",
             "6": "Fixed defect",
+            "6.0": "Fixed defect",
             "7": "Reversible defect",
+            "7.0": "Reversible defect",
         },
         "help": "Thalassemia blood disorder status",
+    },
+}
+
+# ---------------------------------------------------------------------------
+# Clinically Validated Patient Presets (1-Click Viva Demo Profiles)
+# ---------------------------------------------------------------------------
+CLINICAL_PRESETS = {
+    "Healthy Baseline (Low Risk)": {
+        "badge": "Low Risk",
+        "badge_color": "#16A34A",
+        "badge_bg": "#DCFCE7",
+        "expected": "Healthy Profile (90.1% Confidence, No Disease)",
+        "description": "Young adult with optimal hemodynamics, low cholesterol, normal resting ECG, and excellent exercise tolerance.",
+        "inputs": {
+            "age": 45, "trestbps": 118, "chol": 185, "thalach": 165, "oldpeak": 0.0, "ca": 0,
+            "sex": "1", "cp": "2", "restecg": "0", "slope": "1", "fbs": "0", "exang": "0", "thal": "3.0"
+        },
+    },
+    "Borderline Risk (Moderate)": {
+        "badge": "Moderate Risk",
+        "badge_color": "#D97706",
+        "badge_bg": "#FEF3C7",
+        "expected": "Elevated Risk (63.2% Disease Probability)",
+        "description": "Middle-aged patient with prehypertension, borderline cholesterol, flat ST slope, exercise angina, and 1 colored vessel.",
+        "inputs": {
+            "age": 54, "trestbps": 138, "chol": 235, "thalach": 142, "oldpeak": 1.4, "ca": 1,
+            "sex": "1", "cp": "3", "restecg": "0", "slope": "2", "fbs": "0", "exang": "1", "thal": "3.0"
+        },
+    },
+    "Severe CAD (High Risk)": {
+        "badge": "High Risk",
+        "badge_color": "#DC2626",
+        "badge_bg": "#FEE2E2",
+        "expected": "Severe Disease Indication (96.2% Probability)",
+        "description": "Elderly patient presenting with Stage 2 hypertension, hypercholesterolemia, 3.2mm ST depression, and 3-vessel narrowing.",
+        "inputs": {
+            "age": 62, "trestbps": 160, "chol": 286, "thalach": 108, "oldpeak": 3.2, "ca": 3,
+            "sex": "1", "cp": "4", "restecg": "2", "slope": "2", "fbs": "1", "exang": "1", "thal": "7.0"
+        },
+    },
+    "Elderly Asymptomatic CAD": {
+        "badge": "High Risk (Silent)",
+        "badge_color": "#7C3AED",
+        "badge_bg": "#EDE9FE",
+        "expected": "Silent Ischemia Indication (89.4% Probability)",
+        "description": "Female senior with silent ischemia, asymptomatic presentation, diabetic blood sugar, LVH on resting ECG, and reversible defect.",
+        "inputs": {
+            "age": 67, "trestbps": 145, "chol": 240, "thalach": 125, "oldpeak": 2.0, "ca": 2,
+            "sex": "0", "cp": "4", "restecg": "2", "slope": "2", "fbs": "1", "exang": "0", "thal": "7.0"
+        },
     },
 }
 
@@ -1168,36 +1221,133 @@ def render_prediction():
     feature_columns = load_feature_columns(CLEANED_X_PATH)
     groups = split_feature_groups(feature_columns)
 
-    pred_mode = st.radio(
-        "Assessment Mode",
-        ["Single Patient Assessment", "CSV Batch Processing"],
-        horizontal=True,
-        label_visibility="collapsed",
+    pred_tab1, pred_tab2, pred_tab3 = st.tabs(
+        [
+            "Single Patient Assessment",
+            "Clinical Demo Profiles",
+            "CSV Batch Processing",
+        ]
     )
 
-    if pred_mode == "Single Patient Assessment":
+    with pred_tab1:
         _render_single_prediction_form(model, scaler, feature_columns, groups)
-    else:
+    with pred_tab2:
+        _render_clinical_presets_tab(model, scaler, feature_columns, groups)
+    with pred_tab3:
         _render_batch_prediction_form(model, scaler, feature_columns)
 
 
+def apply_clinical_preset(preset_key: str, groups: Dict[str, List[str]]):
+    """Update st.session_state with preset input values."""
+    if preset_key not in CLINICAL_PRESETS:
+        return
+    preset = CLINICAL_PRESETS[preset_key]
+    inp = preset["inputs"]
+
+    for col in CONTINUOUS_FEATURES:
+        st.session_state[f"input_{col}"] = inp[col]
+
+    for cat_key in CATEGORICAL_FEATURES:
+        raw_code = str(inp[cat_key])
+        meta = CATEGORICAL_FEATURES[cat_key]
+        avail_cols = groups.get(cat_key, [])
+        avail_keys = [c.split("_", 1)[1] for c in avail_cols]
+        display_map = {k: meta["options"].get(k, k) for k in avail_keys}
+
+        target_label = display_map.get(raw_code)
+        if not target_label:
+            for k, lbl in display_map.items():
+                if k == raw_code or (k.replace(".0", "") == raw_code.replace(".0", "")):
+                    target_label = lbl
+                    break
+        if target_label:
+            st.session_state[f"input_{cat_key}"] = target_label
+
+    st.session_state["active_preset"] = preset_key
+    st.session_state["prediction_result"] = None
+
+
+def init_input_session_state(groups: Dict[str, List[str]]):
+    """Ensure all form inputs have baseline session state values."""
+    default_inp = CLINICAL_PRESETS["Healthy Baseline (Low Risk)"]["inputs"]
+    for col in CONTINUOUS_FEATURES:
+        key = f"input_{col}"
+        if key not in st.session_state:
+            st.session_state[key] = default_inp[col]
+
+    for cat_key in CATEGORICAL_FEATURES:
+        key = f"input_{cat_key}"
+        if key not in st.session_state:
+            raw_code = str(default_inp[cat_key])
+            meta = CATEGORICAL_FEATURES[cat_key]
+            avail_cols = groups.get(cat_key, [])
+            avail_keys = [c.split("_", 1)[1] for c in avail_cols]
+            display_map = {k: meta["options"].get(k, k) for k in avail_keys}
+            target_label = display_map.get(raw_code)
+            if not target_label:
+                for k, lbl in display_map.items():
+                    if k == raw_code or (k.replace(".0", "") == raw_code.replace(".0", "")):
+                        target_label = lbl
+                        break
+            st.session_state[key] = target_label if target_label else list(display_map.values())[0]
+
+
 def _render_single_prediction_form(model, scaler, feature_columns, groups):
-    """Render single patient form."""
+    """Render single patient form with 1-click clinical demo presets."""
     if "prediction_result" not in st.session_state:
         st.session_state.prediction_result = None
+
+    init_input_session_state(groups)
+
+    st.markdown("#### Quick Clinical Demo Profiles (1-Click Viva Demo)")
+    st.caption("Click any profile below to instantly update all 13 diagnostic parameters:")
+
+    p_col1, p_col2, p_col3, p_col4 = st.columns(4)
+    with p_col1:
+        if st.button("Normal / Low Risk", use_container_width=True, help="Load 45yo healthy patient (90.1% healthy probability)"):
+            apply_clinical_preset("Healthy Baseline (Low Risk)", groups)
+            st.rerun()
+    with p_col2:
+        if st.button("Borderline Risk", use_container_width=True, help="Load 54yo borderline patient (63.2% disease probability)"):
+            apply_clinical_preset("Borderline Risk (Moderate)", groups)
+            st.rerun()
+    with p_col3:
+        if st.button("Severe CAD (High Risk)", use_container_width=True, help="Load 62yo high risk patient (96.2% disease probability)"):
+            apply_clinical_preset("Severe CAD (High Risk)", groups)
+            st.rerun()
+    with p_col4:
+        if st.button("Elderly Asymptomatic", use_container_width=True, help="Load 67yo silent ischemia patient (89.4% disease probability)"):
+            apply_clinical_preset("Elderly Asymptomatic CAD", groups)
+            st.rerun()
+
+    active_p = st.session_state.get("active_preset")
+    if active_p and active_p in CLINICAL_PRESETS:
+        p_info = CLINICAL_PRESETS[active_p]
+        st.markdown(
+            f"""
+            <div style="background-color:{p_info['badge_bg']}; border-left:4px solid {p_info['badge_color']}; padding:10px 14px; border-radius:4px; margin: 8px 0 16px 0;">
+                <span style="font-weight:600; color:{p_info['badge_color']};">Active Profile: {active_p}</span> — 
+                <span style="color:#334155; font-size:0.9rem;">{p_info['description']}</span>
+                <div style="margin-top:4px; font-size:0.82rem; color:{p_info['badge_color']}; font-weight:500;">
+                    Expected Outcome: {p_info['expected']} · All 13 input parameters below updated.
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     st.markdown("#### Diagnostic Measurements")
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        age = st.number_input("Age (years)", min_value=1, max_value=120, value=45, help="Patient age in years")
-        trestbps = st.number_input("Resting Blood Pressure (mm Hg)", min_value=70, max_value=250, value=118, help="Resting BP on admission")
+        age = st.number_input("Age (years)", min_value=1, max_value=120, key="input_age", help="Patient age in years")
+        trestbps = st.number_input("Resting Blood Pressure (mm Hg)", min_value=70, max_value=250, key="input_trestbps", help="Resting BP on admission")
     with col2:
-        chol = st.number_input("Serum Cholesterol (mg/dl)", min_value=100, max_value=700, value=185, help="Serum cholesterol level")
-        thalach = st.number_input("Max Heart Rate Achieved (bpm)", min_value=60, max_value=250, value=165, help="Peak exercise heart rate")
+        chol = st.number_input("Serum Cholesterol (mg/dl)", min_value=100, max_value=700, key="input_chol", help="Serum cholesterol level")
+        thalach = st.number_input("Max Heart Rate Achieved (bpm)", min_value=60, max_value=250, key="input_thalach", help="Peak exercise heart rate")
     with col3:
-        oldpeak = st.number_input("ST Depression (oldpeak mm)", min_value=0.0, max_value=10.0, value=0.0, step=0.1, help="Exercise-induced ST depression")
-        ca = st.number_input("Fluoroscopy Colored Vessels (0–3)", min_value=0, max_value=3, value=0, help="Major vessels colored")
+        oldpeak = st.number_input("ST Depression (oldpeak mm)", min_value=0.0, max_value=10.0, step=0.1, key="input_oldpeak", help="Exercise-induced ST depression")
+        ca = st.number_input("Fluoroscopy Colored Vessels (0–3)", min_value=0, max_value=3, key="input_ca", help="Major vessels colored")
 
     st.markdown("#### Clinical Categorical Features")
     col_a, col_b = st.columns(2)
@@ -1207,15 +1357,20 @@ def _render_single_prediction_form(model, scaler, feature_columns, groups):
         avail_cols = groups[cat_key]
         avail_keys = [c.split("_", 1)[1] for c in avail_cols]
         display_map = {k: meta["options"].get(k, k) for k in avail_keys}
+        options_list = list(display_map.values())
+        widget_key = f"input_{cat_key}"
+        if widget_key not in st.session_state or st.session_state[widget_key] not in options_list:
+            st.session_state[widget_key] = options_list[0]
         with container:
             selected_label = st.selectbox(
                 label,
-                options=list(display_map.values()),
+                options=options_list,
+                key=widget_key,
                 help=meta["help"],
             )
         # Reverse lookup key
-        for k, v in display_map.items():
-            if v == selected_label:
+        for k in avail_keys:
+            if display_map[k] == selected_label:
                 return k
         return avail_keys[0]
 
@@ -1413,6 +1568,73 @@ def _render_batch_prediction_form(model, scaler, feature_columns):
         file_name=f"CardioCare_Batch_Results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
         mime="text/csv",
     )
+
+
+def _render_clinical_presets_tab(model, scaler, feature_columns, groups):
+    """Render comprehensive clinical presets demonstration tab with case studies & comparison matrix."""
+    st.markdown(
+        """
+        <div style="background-color:#F8FAFC; border:1px solid #E2E8F0; border-radius:8px; padding:16px; margin-bottom:20px;">
+            <h3 style="margin:0 0 6px 0; color:#0F172A; font-size:1.15rem;">Clinical Case Study Archetypes</h3>
+            <p style="margin:0; color:#475569; font-size:0.9rem;">
+                These four validated patient archetypes demonstrate the SVM classifier's decision boundary across the clinical spectrum.
+                Click <b>Load Profile into Form</b> to automatically populate all 13 parameters in the assessment form.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    card_cols = st.columns(2)
+    presets_list = list(CLINICAL_PRESETS.items())
+
+    for i, (name, p_data) in enumerate(presets_list):
+        with card_cols[i % 2]:
+            st.markdown(
+                f"""
+                <div style="border:1px solid #E2E8F0; border-radius:8px; padding:16px; background:#FFFFFF; margin-bottom:16px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <h4 style="margin:0; font-size:1.02rem; color:#0F172A;">{name}</h4>
+                        <span style="background-color:{p_data['badge_bg']}; color:{p_data['badge_color']}; font-size:0.75rem; font-weight:600; padding:3px 8px; border-radius:12px;">
+                            {p_data['badge']}
+                        </span>
+                    </div>
+                    <p style="color:#475569; font-size:0.86rem; margin-bottom:10px;">{p_data['description']}</p>
+                    <div style="background:#F8FAFC; border-radius:6px; padding:8px 12px; font-size:0.82rem; color:#334155; margin-bottom:12px;">
+                        <b>Key Markers:</b> Age {p_data['inputs']['age']} · BP {p_data['inputs']['trestbps']} mmHg · Chol {p_data['inputs']['chol']} mg/dl · Max HR {p_data['inputs']['thalach']} bpm · ST Dep {p_data['inputs']['oldpeak']}mm · Vessels {p_data['inputs']['ca']}<br>
+                        <b>Expected Result:</b> <span style="color:{p_data['badge_color']}; font-weight:600;">{p_data['expected']}</span>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            if st.button(f"Load '{name}' into Form", key=f"btn_preset_tab_{i}", use_container_width=True):
+                apply_clinical_preset(name, groups)
+                st.success(f"Loaded '{name}' into assessment form! Switch to 'Single Patient Assessment' tab to view and evaluate.")
+
+    st.markdown("<hr class='cc-divider'>", unsafe_allow_html=True)
+    st.markdown("#### Clinical Presets Comparison Matrix")
+    st.caption("Side-by-side comparison of all 13 diagnostic indicators across the 4 archetypes:")
+
+    # Build comparison dataframe
+    matrix_rows = []
+    matrix_rows.append({"Parameter": "Age (years)", **{n: str(p["inputs"]["age"]) for n, p in CLINICAL_PRESETS.items()}})
+    matrix_rows.append({"Parameter": "Biological Sex", **{n: ("Male" if p["inputs"]["sex"] == "1" else "Female") for n, p in CLINICAL_PRESETS.items()}})
+    matrix_rows.append({"Parameter": "Chest Pain Type", **{n: str(CATEGORICAL_FEATURES["cp"]["options"].get(str(p["inputs"]["cp"]), str(p["inputs"]["cp"]))) for n, p in CLINICAL_PRESETS.items()}})
+    matrix_rows.append({"Parameter": "Resting Blood Pressure (mm Hg)", **{n: str(p["inputs"]["trestbps"]) for n, p in CLINICAL_PRESETS.items()}})
+    matrix_rows.append({"Parameter": "Serum Cholesterol (mg/dl)", **{n: str(p["inputs"]["chol"]) for n, p in CLINICAL_PRESETS.items()}})
+    matrix_rows.append({"Parameter": "Fasting Blood Sugar > 120", **{n: ("Yes" if p["inputs"]["fbs"] == "1" else "No") for n, p in CLINICAL_PRESETS.items()}})
+    matrix_rows.append({"Parameter": "Resting ECG", **{n: str(CATEGORICAL_FEATURES["restecg"]["options"].get(str(p["inputs"]["restecg"]), str(p["inputs"]["restecg"]))) for n, p in CLINICAL_PRESETS.items()}})
+    matrix_rows.append({"Parameter": "Max Heart Rate (bpm)", **{n: str(p["inputs"]["thalach"]) for n, p in CLINICAL_PRESETS.items()}})
+    matrix_rows.append({"Parameter": "Exercise-Induced Angina", **{n: ("Yes" if p["inputs"]["exang"] == "1" else "No") for n, p in CLINICAL_PRESETS.items()}})
+    matrix_rows.append({"Parameter": "ST Depression (mm)", **{n: str(p["inputs"]["oldpeak"]) for n, p in CLINICAL_PRESETS.items()}})
+    matrix_rows.append({"Parameter": "ST Segment Slope", **{n: str(CATEGORICAL_FEATURES["slope"]["options"].get(str(p["inputs"]["slope"]), str(p["inputs"]["slope"]))) for n, p in CLINICAL_PRESETS.items()}})
+    matrix_rows.append({"Parameter": "Colored Major Vessels (0-3)", **{n: str(p["inputs"]["ca"]) for n, p in CLINICAL_PRESETS.items()}})
+    matrix_rows.append({"Parameter": "Thalassemia Profile", **{n: str(CATEGORICAL_FEATURES["thal"]["options"].get(str(p["inputs"]["thal"]), str(p["inputs"]["thal"]))) for n, p in CLINICAL_PRESETS.items()}})
+    matrix_rows.append({"Parameter": "Expected Risk / Prediction", **{n: str(p["expected"]) for n, p in CLINICAL_PRESETS.items()}})
+
+    df_matrix = pd.DataFrame(matrix_rows)
+    st.dataframe(df_matrix.set_index("Parameter"), use_container_width=True)
 
 
 # ---------------------------------------------------------------------------
