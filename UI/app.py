@@ -79,19 +79,19 @@ DB_PATH = os.path.join(BASE_DIR, "data", "prediction_history.db")
 # Feature metadata for human-readable labels
 # ---------------------------------------------------------------------------
 CONTINUOUS_FEATURES = {
-    "age": {"label": "Age", "unit": "years", "min": 1, "max": 120, "default": 55,
+    "age": {"label": "Age", "unit": "years", "min": 1, "max": 120, "default": 45,
             "help": "Patient's age in years"},
     "trestbps": {"label": "Resting Blood Pressure", "unit": "mm Hg", "min": 70,
-                 "max": 250, "default": 130,
+                 "max": 250, "default": 118,
                  "help": "Resting blood pressure on admission (mm Hg)"},
     "chol": {"label": "Serum Cholesterol", "unit": "mg/dl", "min": 100, "max": 700,
-              "default": 240,
+              "default": 185,
               "help": "Serum cholesterol level in mg/dl"},
     "thalach": {"label": "Max Heart Rate Achieved", "unit": "bpm", "min": 60,
-                "max": 250, "default": 150,
+                "max": 250, "default": 165,
                 "help": "Maximum heart rate achieved during exercise test"},
     "oldpeak": {"label": "ST Depression", "unit": "mm", "min": 0.0, "max": 10.0,
-                "default": 1.0,
+                "default": 0.0,
                 "help": "ST depression induced by exercise relative to rest"},
     "ca": {"label": "Major Vessels Coloured", "unit": "count", "min": 0, "max": 3,
             "default": 0,
@@ -977,6 +977,7 @@ def inject_css():
         .cc-badge-blue { background: #EFF6FF; color: #1E40AF; border: 1px solid #BFDBFE; }
         .cc-badge-green { background: #ECFDF5; color: #065F46; border: 1px solid #A7F3D0; }
         .cc-badge-amber { background: #FFFBEB; color: #92400E; border: 1px solid #FDE68A; }
+        .cc-badge-red { background: #FEF2F2; color: #991B1B; border: 1px solid #FECACA; }
 
         .cc-divider {
             border: 0;
@@ -1189,13 +1190,13 @@ def _render_single_prediction_form(model, scaler, feature_columns, groups):
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        age = st.number_input("Age (years)", min_value=1, max_value=120, value=55, help="Patient age in years")
-        trestbps = st.number_input("Resting Blood Pressure (mm Hg)", min_value=70, max_value=250, value=130, help="Resting BP on admission")
+        age = st.number_input("Age (years)", min_value=1, max_value=120, value=45, help="Patient age in years")
+        trestbps = st.number_input("Resting Blood Pressure (mm Hg)", min_value=70, max_value=250, value=118, help="Resting BP on admission")
     with col2:
-        chol = st.number_input("Serum Cholesterol (mg/dl)", min_value=100, max_value=700, value=240, help="Serum cholesterol level")
-        thalach = st.number_input("Max Heart Rate Achieved (bpm)", min_value=60, max_value=250, value=150, help="Peak exercise heart rate")
+        chol = st.number_input("Serum Cholesterol (mg/dl)", min_value=100, max_value=700, value=185, help="Serum cholesterol level")
+        thalach = st.number_input("Max Heart Rate Achieved (bpm)", min_value=60, max_value=250, value=165, help="Peak exercise heart rate")
     with col3:
-        oldpeak = st.number_input("ST Depression (oldpeak mm)", min_value=0.0, max_value=10.0, value=1.0, step=0.1, help="Exercise-induced ST depression")
+        oldpeak = st.number_input("ST Depression (oldpeak mm)", min_value=0.0, max_value=10.0, value=0.0, step=0.1, help="Exercise-induced ST depression")
         ca = st.number_input("Fluoroscopy Colored Vessels (0–3)", min_value=0, max_value=3, value=0, help="Major vessels colored")
 
     st.markdown("#### Clinical Categorical Features")
@@ -1305,6 +1306,114 @@ def _render_single_prediction_form(model, scaler, feature_columns, groups):
                     </p>
                     <p style="margin: 4px 0 0; color:#065F46; font-size:0.88rem;">{conf_str}</p>
                     <p style="font-size:0.75rem; color:#64748B; margin-top:8px;">Evaluated at: {res['timestamp']}</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        # Key Biomarker Status Badges
+        bp_val = inputs["trestbps"]
+        chol_val = inputs["chol"]
+        oldpeak_val = inputs["oldpeak"]
+
+        bp_label = "Optimal (<120)" if bp_val < 120 else ("Pre-HTN (120-129)" if bp_val < 130 else "High (≥130)")
+        bp_badge = "cc-badge-green" if bp_val < 120 else ("cc-badge-amber" if bp_val < 130 else "cc-badge-red")
+
+        chol_label = "Normal (<200)" if chol_val < 200 else ("Borderline (200-239)" if chol_val < 240 else "High (≥240)")
+        chol_badge = "cc-badge-green" if chol_val < 200 else ("cc-badge-amber" if chol_val < 240 else "cc-badge-red")
+
+        st_label = "Normal (0.0 mm)" if oldpeak_val <= 0.2 else "Elevated ST (≥0.5 mm)"
+        st_badge = "cc-badge-green" if oldpeak_val <= 0.2 else "cc-badge-amber"
+
+        st.markdown(
+            f"""
+            <div style="display:flex; flex-wrap:wrap; gap:8px; margin: 0.5rem 0 1rem;">
+                <span class="cc-badge {bp_badge}">Resting BP: {bp_val} mm Hg · {bp_label}</span>
+                <span class="cc-badge {chol_badge}">Cholesterol: {chol_val} mg/dl · {chol_label}</span>
+                <span class="cc-badge {st_badge}">ST Depression: {oldpeak_val} mm · {st_label}</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        # Interactive What-If Counterfactual Risk Simulator
+        with st.expander("⚡ Interactive What-If Risk Simulator (Model Interventions)", expanded=False):
+            st.markdown(
+                "<p style='color:var(--text-secondary); font-size:0.86rem; margin-top:-0.2rem;'>"
+                "Model how adjusting modifiable clinical factors impacts this patient's predicted cardiac risk in real-time."
+                "</p>",
+                unsafe_allow_html=True,
+            )
+            sim_c1, sim_c2, sim_c3 = st.columns(3)
+            with sim_c1:
+                sim_bp = st.slider(
+                    "Simulated Resting BP (mm Hg)",
+                    min_value=90, max_value=220,
+                    value=int(inputs["trestbps"]),
+                    step=2,
+                    key="sim_bp_input"
+                )
+            with sim_c2:
+                sim_chol = st.slider(
+                    "Simulated Cholesterol (mg/dl)",
+                    min_value=120, max_value=500,
+                    value=int(inputs["chol"]),
+                    step=5,
+                    key="sim_chol_input"
+                )
+            with sim_c3:
+                sim_st = st.slider(
+                    "Simulated ST Depression (mm)",
+                    min_value=0.0, max_value=6.0,
+                    value=float(inputs["oldpeak"]),
+                    step=0.1,
+                    key="sim_st_input"
+                )
+
+            # Re-predict with counterfactual inputs
+            sim_inputs = dict(inputs)
+            sim_inputs["trestbps"] = sim_bp
+            sim_inputs["chol"] = sim_chol
+            sim_inputs["oldpeak"] = sim_st
+
+            sim_df = build_input_vector(feature_columns, groups, sim_inputs)
+            sim_scaled = scaler.transform(sim_df) if scaler is not None else sim_df.values
+            sim_pred = int(model.predict(sim_scaled)[0])
+            sim_prob = None
+            if hasattr(model, "predict_proba"):
+                try:
+                    s_proba = model.predict_proba(sim_scaled)[0]
+                    sim_prob = float(s_proba[1] if len(s_proba) > 1 else s_proba[0])
+                except Exception:
+                    pass
+
+            base_prob = prob if prob is not None else (0.80 if p == 1 else 0.20)
+            target_prob = sim_prob if sim_prob is not None else (0.80 if sim_pred == 1 else 0.20)
+            delta_pct = (target_prob - base_prob) * 100
+
+            if delta_pct < -0.5:
+                delta_html = f"<span style='color:#059669; font-weight:700;'>⬇ {abs(delta_pct):.1f}% Risk Reduction</span>"
+            elif delta_pct > 0.5:
+                delta_html = f"<span style='color:#DC2626; font-weight:700;'>⬆ +{delta_pct:.1f}% Risk Increase</span>"
+            else:
+                delta_html = "<span style='color:#64748B; font-weight:600;'>No significant change</span>"
+
+            status_text = "Elevated Risk Indication" if sim_pred == 1 else "Normal Profile"
+            status_color = "#DC2626" if sim_pred == 1 else "#059669"
+
+            st.markdown(
+                f"""
+                <div class="cc-card" style="padding: 1rem 1.25rem; margin-top:0.5rem; background:#F8FAFC; border-color:#CBD5E1;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                        <div>
+                            <div style="font-size:0.74rem; text-transform:uppercase; color:#64748B; font-weight:700;">Simulated Outcome</div>
+                            <div style="font-size:1.15rem; font-weight:800; color:{status_color};">{status_text} (Risk: {target_prob:.1%})</div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="font-size:0.74rem; text-transform:uppercase; color:#64748B; font-weight:700;">Net Intervention Benefit</div>
+                            <div style="font-size:1.05rem;">{delta_html}</div>
+                        </div>
+                    </div>
                 </div>
                 """,
                 unsafe_allow_html=True,
